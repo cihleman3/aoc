@@ -11,6 +11,8 @@ object GraphUtils:
     then if ls.isEmpty then Right(true) else Left("Empty graph")
     else if g.isCyclic
     then Left("Graph is cyclical and has, hence, no linear extension.")
+    else if ls.size != ls.distinct.size then
+      Left("List contains duplicated elements and is, hence, either cylcial or non-sensical.")
     else if g.nodes.toSet != ls.toSet then Left("Nodes of sequence and graph are not the same.")
     else
       val res = ls.zipWithIndex
