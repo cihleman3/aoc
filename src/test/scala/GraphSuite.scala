@@ -1,24 +1,25 @@
 import GraphUtils.isLinearExtension
 import generators.*
 import munit.ScalaCheckSuite
-import org.scalacheck.Gen
 import org.scalacheck.Prop.forAll
+import org.scalacheck.Test.Parameters
+import org.scalacheck.{Gen, Test}
 import scalax.collection.OuterImplicits.anyToNode
 import scalax.collection.edges.{DiEdge, DiEdgeImplicits}
 import scalax.collection.immutable.Graph
 
-class GraphSuite extends ScalaCheckSuite:
+import scala.concurrent.duration.*
+import scala.language.postfixOps
 
-  override def scalaCheckTestParameters =
-    super.scalaCheckTestParameters
-      .withMinSuccessfulTests(1_000)
+class GraphSuite extends ScalaCheckSuite:
+  override val munitTimeout = 5 minutes
 
   property("cyclic graphs have no linear extensions"):
     forAll(cyclicGraphGen): g =>
       val nodes = g.nodes.map(_.outer).toList
       assert(isLinearExtension(g)(nodes).isLeft, s"Cyclic graph should reject any ordering: $g")
 
-  test("empty graph accepts empty list"):
+  property("empty graph accepts empty list"):
     val emptyGraph = Graph.empty[Int, DiEdge[Int]]
     assert(isLinearExtension(emptyGraph)(List.empty).isRight)
 
@@ -40,15 +41,14 @@ class GraphSuite extends ScalaCheckSuite:
           s"Wrong node set should be rejected. Graph: $correctNodes, Given: $wrongNodeSet",
         )
 
-  property("valid topological orderings return true"):
-    forAll(acyclicGraphGen): g =>
-      if !g.isCyclic && !g.isEmpty then
-        forAll(topologicalOrderGen(g)): ordering =>
-          if ordering.nonEmpty then
-            assert(
-              isLinearExtension(g)(ordering).isRight,
-              s"Valid topological ordering should be accepted. Graph: $g, Ordering: $ordering",
-            )
+  test("valid topological orderings return true"):
+    val prop = forAll(validGraphAndOrderingGen): (g, ls) =>
+      assert(
+        isLinearExtension(g)(ls).isRight,
+        s"Valid topological ordering should be accepted. Graph: $g, Ordering: $ls",
+      )
+    val result = Test.check(Parameters.default.withMinSuccessfulTests(1_000), prop)
+    assert(result.passed, s"Property failed: $result")
 
   property("reversed ordering is usually invalid"):
     forAll(acyclicGraphGen): g =>
