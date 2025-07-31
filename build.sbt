@@ -2,6 +2,8 @@ ThisBuild / version := "0.1.0-SNAPSHOT"
 
 ThisBuild / scalaVersion := "3.7.1"
 
+ThisBuild / scalacOptions += "-language:postfixOps"
+
 lazy val root = project
   .in(file("."))
   .settings(

@@ -1,17 +1,19 @@
 import GraphDotUtils.graphToDot
 import org.scalacheck.Gen
-import org.scalacheck.Gen.*
 import scalax.collection.edges.{DiEdge, DiEdgeImplicits}
 import scalax.collection.immutable.Graph
 
 object generators:
 
+  val maxGraphSize = 40
+  val maxCyclicalGraphSize = 60
   // Generator for small integers to keep graphs manageable
-  val smallInt: Gen[Int] = Gen.choose(1, 100)
+  val smallInt: Gen[Int] = Gen.choose(1, 10 * maxGraphSize)
+
 
   // Generator for acyclic directed graphs
   val acyclicGraphGen: Gen[Graph[Int, DiEdge[Int]]] = for
-    nodeCount <- Gen.choose(1, 8) // Keep small for performance
+    nodeCount <- Gen.choose(1, maxGraphSize) // Keep small for performance
     nodes = (1 to nodeCount).toList
     // Generate edges that respect topological ordering (i < j for edge i ~> j)
     edges <- Gen.listOfN(
@@ -26,7 +28,7 @@ object generators:
 
   // Generator for cyclic graphs
   val cyclicGraphGen: Gen[Graph[Int, DiEdge[Int]]] = for
-    nodeCount <- Gen.choose(2, 6)
+    nodeCount <- Gen.choose(2, maxCyclicalGraphSize)
     nodes = (1 to nodeCount).toList
     // Create a cycle plus some additional edges
     cycle = nodes.zip(nodes.tail :+ nodes.head).map { case (a, b) => a ~> b }
@@ -40,8 +42,16 @@ object generators:
 
   // Generate valid topological orderings
   def topologicalOrderGen(g: Graph[Int, DiEdge[Int]]): Gen[List[Int]] =
-    if g.isCyclic || g.isEmpty then Gen.const(List.empty)
-    else g.topologicalSort(using _ => ()).toOption.get.toList.map(_.outer)
+    if g.isCyclic || g.isEmpty then List.empty
+    else
+      g.topologicalSort.toOption.get.toList.map(_.outer)
+
+  val validGraphAndOrderingGen = for
+    g <- acyclicGraphGen
+    if !g.isCyclic && !g.isEmpty
+    ordering <- topologicalOrderGen(g)
+    if ordering.nonEmpty
+  yield (g, ordering)
 
   @main
   def testGen() =
@@ -50,9 +60,19 @@ object generators:
     val nonBare = ls.filterNot(_.edges.isEmpty)
     println(ls.mkString("\n"))
     println("nonBare")
-    println(nonBare.mkString("\n"))
 
+    println(nonBare.mkString("\n"))
     val dots = nonBare.map(graphToDot)
     println("Generated DOT files:")
     dots.foreach(println)
+
     println("---")
+    val orders = nonBare.map(topologicalOrderGen(_).sample.get)
+    println("Generated linear extensions:")
+    orders.foreach(println)
+
+    println("---")
+    val g2 = validGraphAndOrderingGen
+    val ls2 = (1 to 10).map(_ => g2.sample.get)
+    println("Generated combined linear extensions:")
+    println(ls2.mkString("\n"))
